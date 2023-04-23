@@ -1,5 +1,7 @@
 # GPT Digest
 
+[Try it! (en)](https://t.me/gptbionews) [Try it! (ru)](https://t.me/gptbionewsrus)
+
 > This project was created to read daily digests based on **biotech news**. You may need to edit prompts for your purpose.
 
 This repository includes a project designed to download RSS feeds, filter them with regular expressions, and generate daily digests using OpenAI GPT models (GPT-3.5 and GPT-4 are used for different stages of the pipeline). Here's a quick overview:
