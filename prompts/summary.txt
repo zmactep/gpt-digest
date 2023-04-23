@@ -1,0 +1,1 @@
+Reformulate a messy HTML into a clear plain text summary without any tags. You may add additional information that is missing from the source text to make the result more informative.

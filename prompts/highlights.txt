@@ -1,0 +1,1 @@
+Write short hightlights for the given text as a numbered list. Add no more than 10 items.

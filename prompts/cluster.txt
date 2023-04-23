@@ -1,0 +1,8 @@
+Cluster the given biotech messages by topics (e.g. events, products, technologies, indications, etc). Each message should be assigned to exactly one topic. Avoid topics that are too general. Assign no more than 5 messages to one topic.
+Answer in this format:
+```json
+{
+    "Topic #1": [id1, id2, id3],
+    "Topic #2": [id4, id5, id6]
+}
+```

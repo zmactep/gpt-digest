@@ -1,0 +1,32 @@
+version: "3.3"
+
+services:
+
+  traefik:
+    image: "traefik:v2.9"
+    container_name: "traefik"
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=pavel@yakovlev.me"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "443:443"
+    volumes:
+      - "./letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  digest:
+    image: "digest"
+    container_name: "digest"
+    volumes:
+      - "${DIGEST_PATH}/markdown:/markdown:ro"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.digest.rule=Host(`${DIGEST_DOMAIN}`)"
+      - "traefik.http.routers.digest.entrypoints=websecure"
+      - "traefik.http.routers.digest.tls.certresolver=myresolver"
+      - "traefik.http.services.digest.loadBalancer.server.port=8000"
