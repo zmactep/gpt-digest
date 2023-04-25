@@ -52,6 +52,8 @@ def generate(output: str, add_summaries: bool = True,
 
     # Clusterize entries by topics
     clusters = gpt.make_topics(entries)
+    if not clusters:
+        return digest
 
     # Write a summary for each topic
     summaries = gpt.make_topic_summaries(clusters) if add_summaries else None

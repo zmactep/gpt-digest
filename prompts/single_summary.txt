@@ -1,1 +1,1 @@
-Write a single very short summary of the main ideas of the given messages.
+Write a single very short summary of the main ideas of the given messages. Do not use lists for summary.

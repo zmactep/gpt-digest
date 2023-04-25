@@ -3,10 +3,12 @@
 """GPT requests"""
 
 import os
+import sys
 import json
 import logging
-import openai
 import tiktoken
+import openai
+from openai.error import RateLimitError
 
 from digest.feed import FeedEntrie, change_content
 from digest.io import load_prompt
@@ -23,16 +25,22 @@ class GPT:
         self.model = model
         self.allow32k = allow32k
 
-    def request(self, user_prompt: str):
+    def request(self, user_prompt: str, max_attempts: int = 2) -> str:
         """Run request"""
+        content = None
         logging.info(f"Sending {self.prompt} request to GPT")
-        response = request(self.system_prompt, user_prompt, 
-                           model=self.model, allow32k=self.allow32k)
+        response = request(self.system_prompt, user_prompt,
+                           model=self.model, allow32k=self.allow32k,
+                           max_attempts=max_attempts)
+        if not response:
+            logging.fatal("Response failed. Aboring.")
+            sys.exit(1)
         content = response['choices'][0]['message']['content']
         logging.info("Response recieved")
         return content
 
-def request(system_prompt: str, user_prompt: str, model: str = 'gpt-4', allow32k: str = False):
+def request(system_prompt: str, user_prompt: str, model: str = 'gpt-4',
+            allow32k: str = False, max_attempts: int = 2):
     """Runs request to OpenAI GPT API"""
     response = None
     count_tokens = lambda x: len(tiktoken.encoding_for_model('gpt-4').encode(x))
@@ -45,10 +53,20 @@ def request(system_prompt: str, user_prompt: str, model: str = 'gpt-4', allow32k
             logging.error(f'Text is too long ({tokens_size} tokens)')
             return response
     logging.info(f"{tokens_size} tokens will be sent to {model} model")
-    response = openai.ChatCompletion.create(model=model, messages=[
-        {'role': 'system', 'content': system_prompt},
-        {'role': 'user', 'content': user_prompt}
-    ])
+    for i in range(1, max_attempts + 1):
+        try:
+            response = openai.ChatCompletion.create(model=model, messages=[
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': user_prompt}
+            ])
+            break
+        except RateLimitError:
+            logging.warning("Rate limit error, server is busy")
+            if i == max_attempts:
+                logging.error("All attempts have been exhausted, request failed")
+                return response
+            else:
+                logging.info(f"Trying again: {i}/{max_attempts}")
     return response
 
 def content_prompt(entries: list[FeedEntrie]) -> str:
@@ -66,15 +84,20 @@ def summarize(entries: list[FeedEntrie]) -> list[FeedEntrie]:
     logging.info('All tasks were finished')
     return new_entries
 
-def make_topics(entries: list[FeedEntrie], max_attempts: int = 2) -> dict[str, list[FeedEntrie]]:
+def make_topics(entries: list[FeedEntrie], max_attempts: int = 2, 
+                max_cluster_size: int = 6) -> dict[str, list[FeedEntrie]]:
     """Detects topics from entries content and clusterie entries by topics"""
     topics = GPT('cluster', model='gpt-4')
     clusters = {}
     for i in range(max_attempts):
-        clusters_with_ids = json.loads(topics.request(content_prompt(entries)))
+        clusters_response = topics.request(content_prompt(entries))
+        logging.debug(f"Cluters reponse:\n{clusters_response}")
         try:
+            clusters_with_ids = json.loads(clusters_response)
             clusters = {}
             for topic, entries_ids in clusters_with_ids.items():
+                if len(entries_ids) > max_cluster_size:
+                    raise IndexError(f"Cluster '{topic}' size is too big ({len(entries_ids)})")
                 logging.info(f"Topic '{topic}' was detected for {len(entries_ids)} messages")
                 clusters[topic] = [entries[idx - 1] for idx in entries_ids]
             break
@@ -86,6 +109,7 @@ def make_topics(entries: list[FeedEntrie], max_attempts: int = 2) -> dict[str, l
             logging.info(f"Trying again ({i+1}/{max_attempts})")
         else:
             logging.error("All attempts have been exhausted, clustering failed")
+            clusters = {}
     return clusters
 
 def make_topic_summaries(clusters: dict[str, list[FeedEntrie]]) -> list[str]:
@@ -109,6 +133,7 @@ def translate(digest: str, split_pattern: str = '\n\n## ') -> str:
     """Translates digest topic by topic"""
     translator = GPT('translate', model='gpt-4')
     translated_blocks = []
-    for block in digest.split(split_pattern):
+    blocks = digest.split(split_pattern)
+    for block in blocks:
         translated_blocks.append(translator.request(block))
     return split_pattern.join(translated_blocks)
